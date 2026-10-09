@@ -67,39 +67,71 @@ router.delete("/thread/:threadId", async (req, res) => {
     }
 });
 
-router.post("/chat", async(req, res) => {
-    const {threadId, message} = req.body;
 
-    if(!threadId || !message) {
-        res.status(400).json({error: "missing required fields"});
+router.post("/chat", async (req, res) => {
+    const { threadId, message } = req.body ?? {};
+
+    // Validate request fields
+    if (
+        typeof threadId !== "string" ||
+        !threadId.trim() ||
+        typeof message !== "string" ||
+        !message.trim()
+    ) {
+        return res.status(400).json({
+            error: "missing required fields",
+            received: {
+                threadId: threadId ?? null,
+                message: message ?? null
+            }
+        });
     }
 
     try {
-        let thread = await Thread.findOne({threadId});
+        const cleanThreadId = threadId.trim();
+        const cleanMessage = message.trim();
 
-        if(!thread) {
-            //create a new thread in Db
+        let thread = await Thread.findOne({
+            threadId: cleanThreadId
+        });
+
+        if (!thread) {
             thread = new Thread({
-                threadId,
-                title: message,
-                messages: [{role: "user", content: message}]
+                threadId: cleanThreadId,
+                title: cleanMessage,
+                messages: [
+                    { role: "user", content: cleanMessage }
+                ]
             });
         } else {
-            thread.messages.push({role: "user", content: message});
+            thread.messages.push({
+                role: "user",
+                content: cleanMessage
+            });
         }
 
-        const assistantReply = await getOpenAIAPIResponse(message);
+        const assistantReply = await getOpenAIAPIResponse(cleanMessage);
 
-        thread.messages.push({role: "assistant", content: assistantReply});
+        thread.messages.push({
+            role: "assistant",
+            content: assistantReply
+        });
+
         thread.updatedAt = new Date();
 
         await thread.save();
-        res.json({reply: assistantReply});
-    } catch(err) {
-        console.log(err);
-        res.status(500).json({error: "something went wrong"});
+
+        return res.json({ reply: assistantReply });
+
+    } catch (err) {
+        console.error("Chat route error:", err);
+
+        return res.status(500).json({
+            error: "something went wrong"
+        });
     }
 });
+
 
 
 
